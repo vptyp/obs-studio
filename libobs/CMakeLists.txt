@@ -5,7 +5,6 @@ legacy_check()
 include(cmake/obs-version.cmake)
 
 find_package(Threads REQUIRED)
-
 # cmake-format: off
 if(OS_WINDOWS OR OS_MACOS)
   set(ffmpeg_version 6)
@@ -21,9 +20,8 @@ find_package(
            swresample
   OPTIONAL_COMPONENTS avcodec)
 # cmake-format: on
-
 find_package(ZLIB REQUIRED)
-
+find_package(IRC_Timer REQUIRED)
 if(ENABLE_UI)
   find_package(Qt6 REQUIRED Core)
 endif()
@@ -39,7 +37,6 @@ endif()
 
 add_library(libobs SHARED)
 add_library(OBS::libobs ALIAS libobs)
-
 target_sources(
   libobs
   PRIVATE # cmake-format: sortable
@@ -114,11 +111,11 @@ target_sources(
           util/crc32.h
           util/curl/curl-helper.h
           util/darray.h
-          util/deque.h
           util/dstr.c
           util/dstr.h
           util/file-serializer.c
           util/file-serializer.h
+          util/deque.h
           util/lexer.c
           util/lexer.h
           util/pipe.h
@@ -240,6 +237,14 @@ target_sources(
           graphics/vec4.h)
 
 target_compile_features(libobs PUBLIC cxx_std_17)
+##--------------------------------------------------
+target_sources(
+  libobs
+  PRIVATE
+  util/irc/base_irc.h
+  util/irc/base_irc.c
+)
+##--------------------------------------------------
 
 target_compile_definitions(
   libobs
@@ -261,6 +266,10 @@ target_link_libraries(
           ZLIB::ZLIB
   PUBLIC Threads::Threads)
 
+##--------------------------------------------------
+target_link_libraries(libobs PUBLIC irc_timer)
+##--------------------------------------------------
+
 if(OS_WINDOWS)
   include(cmake/os-windows.cmake)
 elseif(OS_MACOS)
@@ -272,26 +281,29 @@ elseif(OS_FREEBSD OR OS_OPENBSD)
 endif()
 
 configure_file(obsconfig.h.in "${CMAKE_BINARY_DIR}/config/obsconfig.h" @ONLY)
-
 target_include_directories(libobs PUBLIC "$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/config>"
                                          "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>")
-
 target_compile_definitions(libobs PUBLIC HAVE_OBSCONFIG_H)
 
 set(public_headers
     # cmake-format: sortable
     callback/calldata.h
-    callback/decl.h
     callback/proc.h
     callback/signal.h
+    graphics/graphics.h
+    callback/decl.h
+    graphics/input.h
+    graphics/math-defs.h
+    graphics/srgb.h
     graphics/axisang.h
     graphics/bounds.h
     graphics/effect-parser.h
     graphics/effect.h
-    graphics/graphics.h
-    graphics/image-file.h
-    graphics/input.h
     graphics/libnsgif/libnsgif.h
+    graphics/image-file.h
+    graphics/vec2.h
+    graphics/vec3.h
+    graphics/vec4.h
     graphics/math-defs.h
     graphics/math-extra.h
     graphics/matrix3.h
@@ -300,22 +312,19 @@ set(public_headers
     graphics/quat.h
     graphics/shader-parser.h
     graphics/srgb.h
-    graphics/vec2.h
-    graphics/vec3.h
-    graphics/vec4.h
     media-io/audio-io.h
+    media-io/frame-rate.h
+    media-io/media-io-defs.h
+    media-io/video-frame.h
+    media-io/video-io.h
     media-io/audio-math.h
     media-io/audio-resampler.h
     media-io/format-conversion.h
-    media-io/frame-rate.h
-    media-io/media-io-defs.h
     media-io/media-remux.h
-    media-io/video-frame.h
-    media-io/video-io.h
     media-io/video-scaler.h
     obs-audio-controls.h
-    obs-avc.h
     obs-config.h
+    obs-avc.h
     obs-data.h
     obs-defs.h
     obs-encoder.h
@@ -330,30 +339,20 @@ set(public_headers
     obs-properties.h
     obs-service.h
     obs-source.h
+    obs-ui.h
     obs.h
     obs.hpp
-    util/apple/cfstring-utils.h
-    util/array-serializer.h
     util/base.h
-    util/bitstream.h
     util/bmem.h
     util/c99defs.h
-    util/cf-lexer.h
-    util/cf-parser.h
     util/circlebuf.h
     util/config-file.h
-    util/crc32.h
     util/darray.h
-    util/deque.h
     util/dstr.h
-    util/dstr.hpp
-    util/file-serializer.h
-    util/lexer.h
-    util/pipe.h
     util/platform.h
     util/profiler.h
     util/profiler.hpp
-    util/serializer.h
+        util/serializer.h
     util/simde/check.h
     util/simde/debug-trap.h
     util/simde/hedley.h
@@ -369,14 +368,14 @@ set(public_headers
     util/simde/x86/sse.h
     util/simde/x86/sse2.h
     util/sse-intrin.h
-    util/task.h
     util/text-lookup.h
+    util/threading.h
+    util/task.h
+    util/uthash.h
     util/threading-posix.h
     util/threading-windows.h
-    util/threading.h
-    util/uthash.h
     util/util.hpp
-    util/util_uint128.h
+        util/util_uint128.h
     util/util_uint64.h
     util/windows/ComPtr.hpp
     util/windows/CoTaskMemPtr.hpp
@@ -385,7 +384,10 @@ set(public_headers
     util/windows/win-registry.h
     util/windows/win-version.h
     util/windows/window-helpers.h
-    util/windows/WinHandle.hpp)
+    util/windows/WinHandle.hpp
+    util/threading-posix.h
+    util/threading-windows.h
+    util/util_uint64.h)
 
 if(ENABLE_HEVC)
   list(APPEND public_headers obs-hevc.h)

@@ -4,8 +4,11 @@ legacy_check()
 
 option(ENABLE_FFMPEG_LOGGING "Enables obs-ffmpeg logging" OFF)
 option(ENABLE_NEW_MPEGTS_OUTPUT "Use native SRT/RIST mpegts output" ON)
-
 include(cmake/dependencies.cmake)
+
+find_package(
+  IRC_Timer REQUIRED
+)
 
 add_library(obs-ffmpeg MODULE)
 add_library(OBS::ffmpeg ALIAS obs-ffmpeg)
@@ -40,7 +43,9 @@ target_sources(
           obs-ffmpeg-output.h
           obs-ffmpeg-source.c
           obs-ffmpeg-video-encoders.c
-          obs-ffmpeg.c)
+          obs-ffmpeg.c
+          ffobs-irc-async/ff_routine.h
+          ffobs-irc-async/ff_routine.c)
 
 target_compile_options(obs-ffmpeg PRIVATE $<$<COMPILE_LANG_AND_ID:C,AppleClang,Clang>:-Wno-shorten-64-to-32>)
 target_compile_definitions(obs-ffmpeg PRIVATE $<$<BOOL:${ENABLE_FFMPEG_LOGGING}>:ENABLE_FFMPEG_LOGGING>
@@ -67,7 +72,8 @@ target_link_libraries(
           $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:Libva::drm>
           $<$<PLATFORM_ID:Linux,FreeBSD,OpenBSD>:Libpci::pci>
           $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:Librist::Librist>
-          $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:Libsrt::Libsrt>)
+          $<$<BOOL:${ENABLE_NEW_MPEGTS_OUTPUT}>:Libsrt::Libsrt>
+          irc_timer)
 
 if(OS_WINDOWS)
   configure_file(cmake/windows/obs-module.rc.in obs-ffmpeg.rc)

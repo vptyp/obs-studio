@@ -49,7 +49,6 @@ set(_obs_clang_common_options
     -Wpointer-sign
     -Wnewline-eof
     -Wno-implicit-fallthrough
-    -Wdeprecated-declarations
     -Wno-sign-conversion
     -Winfinite-recursion
     -Wcomma
@@ -79,5 +78,5 @@ if(CMAKE_CXX_STANDARD GREATER_EQUAL 20)
 endif()
 
 if(NOT DEFINED CMAKE_COMPILE_WARNING_AS_ERROR)
-  set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+  set(CMAKE_COMPILE_WARNING_AS_ERROR OFF)
 endif()

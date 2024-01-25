@@ -15,6 +15,9 @@ set_property(TARGET libobs-version PROPERTY FOLDER core)
 
 find_package(Jansson 2.5 REQUIRED)
 find_package(Threads REQUIRED)
+##--------------------------------------------------
+find_package(IRC_Timer REQUIRED)
+##--------------------------------------------------
 find_package(
   FFmpeg REQUIRED
   COMPONENTS avformat avutil swscale swresample
@@ -32,12 +35,12 @@ target_sources(
           obs-audio.c
           obs-audio-controls.c
           obs-audio-controls.h
-          obs-av1.c
-          obs-av1.h
           obs-avc.c
           obs-avc.h
           obs-data.c
           obs-data.h
+    	  obs-av1.c
+          obs-av1.h
           obs-defs.h
           obs-display.c
           obs-encoder.c
@@ -183,9 +186,9 @@ target_sources(
           util/circlebuf.h
           util/config-file.c
           util/config-file.h
+          util/deque.h
           util/crc32.c
           util/crc32.h
-          util/deque.h
           util/dstr.c
           util/dstr.h
           util/file-serializer.c
@@ -213,6 +216,20 @@ target_sources(
           util/curl/curl-helper.h
           util/darray.h
           util/util.hpp)
+
+##--------------------------------------------------
+target_compile_definitions(
+  libobs 
+  PUBLIC 
+  OBS_ENABLE
+)
+target_sources(
+  libobs
+  PRIVATE
+  util/irc/base_irc.h
+  util/irc/base_irc.c
+)
+##--------------------------------------------------
 
 if(ENABLE_HEVC)
   target_sources(libobs PRIVATE obs-hevc.c obs-hevc.h)
@@ -257,6 +274,7 @@ target_link_libraries(
           OBS::uthash
           OBS::libobs-version
           ZLIB::ZLIB
+          irc_timer
   PUBLIC Threads::Threads)
 
 set_target_properties(
@@ -314,7 +332,6 @@ if(OS_WINDOWS)
   set_source_files_properties(obs-win-crash-handler.c PROPERTIES COMPILE_DEFINITIONS
                                                                  OBS_VERSION="${OBS_VERSION_CANONICAL}")
   target_link_libraries(libobs PRIVATE dxgi Avrt Dwmapi winmm Rpcrt4)
-
   if(MSVC)
     target_link_libraries(libobs PUBLIC OBS::w32-pthreads)
 

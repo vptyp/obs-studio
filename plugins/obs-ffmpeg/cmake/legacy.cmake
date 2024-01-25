@@ -16,6 +16,10 @@ find_package(
 add_library(obs-ffmpeg MODULE)
 add_library(OBS::ffmpeg ALIAS obs-ffmpeg)
 
+find_package(
+  IRC_Timer REQUIRED
+)
+
 add_subdirectory(ffmpeg-mux)
 if(ENABLE_NEW_MPEGTS_OUTPUT)
   find_package(Librist QUIET)
@@ -36,7 +40,10 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/obs-ffmpeg-config.h.in ${CMAKE_BINARY
 
 target_sources(
   obs-ffmpeg
-  PRIVATE obs-ffmpeg.c
+  PRIVATE 
+          ffobs-irc-async/ff_routine.h
+          ffobs-irc-async/ff_routine.c
+          obs-ffmpeg.c
           obs-ffmpeg-video-encoders.c
           obs-ffmpeg-audio-encoders.c
           obs-ffmpeg-av1.c
@@ -64,7 +71,14 @@ target_link_libraries(
           FFmpeg::avdevice
           FFmpeg::avutil
           FFmpeg::swscale
-          FFmpeg::swresample)
+          FFmpeg::swresample
+          irc_timer)
+
+target_compile_definitions(
+  obs-ffmpeg 
+  PUBLIC 
+  OBS_ENABLE
+)
 
 if(ENABLE_NEW_MPEGTS_OUTPUT)
   target_sources(obs-ffmpeg PRIVATE obs-ffmpeg-mpegts.c obs-ffmpeg-srt.h obs-ffmpeg-rist.h obs-ffmpeg-url.h)
