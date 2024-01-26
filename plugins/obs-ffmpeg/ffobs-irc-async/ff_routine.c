@@ -5,6 +5,12 @@ void* ff_reference_frame(void* frame){
     return av_frame_clone((AVFrame*)frame);
 }
 
+typedef struct pts_w_time{
+	long time[2];
+	long pts;
+}pts_w_time;
+
+
 void ff_callback(void* event_data);
 
 void ff_unref_frame(void* frame){
@@ -104,13 +110,13 @@ void encoded_deref(void* key)
 }
 
 //binary search first element > value in rotated array
-int binary_search(long* array, int size, long value){
+int binary_search(pts_w_time* array, int size, long value){
 	int left = 0;
 	int right = size - 1;
 	int mid = 0;
 	while(left < right){
 		mid = (left + right) / 2;
-		if(array[mid] > value){
+		if(array[mid].pts > value){
 			right = mid;
 		} else {
 			left = mid + 1;
@@ -119,11 +125,11 @@ int binary_search(long* array, int size, long value){
 	return left;
 }
 
-int pivoted_search(long* array, int size, long value, int pivot)
+int pivoted_search(pts_w_time* array, int size, long value, int pivot)
 {
 	if(pivot < 0 || size == 0 || value < 0) return -1;
 
-	if(value > array[pivot]) {
+	if(value > array[pivot].pts) {
 		return binary_search(array, pivot, value);
 	}
 	return binary_search(array + pivot, size - pivot, value);
@@ -136,34 +142,34 @@ int pivoted_search(long* array, int size, long value, int pivot)
  * \param count number of elements to remove
  * \return 0 on success, -1 on error
  */
-int circular_remove_before(long* array, size_t size, size_t* pivot, size_t count)
+int circular_remove_before(pts_w_time* array, size_t size, size_t* pivot, size_t count)
 {
 	if(size == 0) return -1;
 	if(count == 0) return 0;
 	if(count == size) {
-		memset(array, 0, sizeof(long) * size);
+		memset(array, 0, sizeof(pts_w_time) * size);
 		return 0;
 	}
-	long* right = malloc(sizeof(long) * *pivot);
-	memcpy(right, array, sizeof(long) * *pivot);
+	pts_w_time* right = malloc(sizeof(pts_w_time) * *pivot);
+	memcpy(right, array, sizeof(pts_w_time) * *pivot);
 	const size_t move = *pivot + count;
 	size_t last_idx;
 	//if move > size, then we don't need to move elements from smaller side
 	if(move >= size) {
 		//move elements from right (bigger) to beginning of array
-		memmove(array, right + move - size, sizeof(long) * (move - size));
+		memmove(array, right + move - size, sizeof(pts_w_time) * (move - size));
 		last_idx = move - size;
 	} else {
 		//move elements from left (smaller) to the beginning of array
-		memmove(array, array + move, sizeof(long) * (size - move));
+		memmove(array, array + move, sizeof(pts_w_time) * (size - move));
 		//append right (bigger) elements to the end of left side
-		memmove(array + move, right, sizeof(long) * *pivot);
+		memmove(array + move, right, sizeof(pts_w_time) * *pivot);
 		last_idx = move + *pivot;
 	}
 	*pivot = last_idx;
 	//zero out the rest of the array
 	if(last_idx < size){
-		memset(array + last_idx, 0, sizeof(long) * (size - last_idx));
+		memset(array + last_idx, 0, sizeof(pts_w_time) * (size - last_idx));
 	} else {
 		*pivot = 0;
 	}
@@ -178,10 +184,10 @@ void* encoded_routine(void* arg)
 	thread_data* data = irc_get_thread_data(encoder);
 	void* frame = NULL;
 	//all values < internArray[0] must be removed
-	long externArray[buf_size];
+	pts_w_time externArray[buf_size];
 	size_t pivotExt = 0;
 	bool isPivotExt = false;
-	long internArray[buf_size];
+	pts_w_time internArray[buf_size];
 	size_t pivotInt = 0;
 	bool isPivotInt = false;
 	memset(externArray, 0, sizeof(externArray));
@@ -196,13 +202,17 @@ void* encoded_routine(void* arg)
 			if(!value) continue;
 
 			if(direction) {
-				externArray[pivotExt++] = value;
+				externArray[pivotExt].pts = value;
+				externArray[pivotExt].time[0] = time[0];
+				externArray[pivotExt++].time[1] = time[1];
 				if(pivotExt >= buf_size) {
 					pivotExt = 0;
 					isPivotExt = true;
 				}
 			} else {
-				internArray[pivotInt++] = value;
+				internArray[pivotInt].pts = value;
+				internArray[pivotInt].time[0] = time[0];
+				internArray[pivotInt++].time[1] = time[1];
 				if(pivotInt >= buf_size) {
 					pivotInt = 0;
 					isPivotInt = true;
@@ -210,14 +220,14 @@ void* encoded_routine(void* arg)
 			}
 
 			int result = pivoted_search(externArray, isPivotExt ? buf_size : pivotExt,
-							internArray[isPivotInt ? pivotInt : 0],
+							internArray[isPivotInt ? pivotInt : 0].pts,
 							isPivotExt ? pivotExt : 0);
 			if(result > 0) {
-				if(externArray[result] == internArray[isPivotInt ? pivotInt : 0]) {
+				if(externArray[result].pts <= internArray[isPivotInt ? pivotInt : 0].pts) {
 					#define len 40
 					char str[len];
-					get_current_time_str(str, len, time[0], time[1]);
-					p_timer_append_file(encoder->_outFilename, (char*) time,
+					get_current_time_str(str, len, externArray[result].time[0], externArray[result].time[1]);
+					p_timer_append_file(encoder->_outFilename, (char*) externArray[result].time,
 											sizeof(long), 2);
 					printf("%s: %s.%03ld\n", encoder->_outFilename, str, time[1]);
 				}
@@ -228,9 +238,9 @@ void* encoded_routine(void* arg)
 			} else {
 				if(result == 0) {
 					result = pivoted_search(internArray, isPivotInt ? buf_size : pivotInt,
-							externArray[isPivotExt ? pivotExt : 0],
+							externArray[isPivotExt ? pivotExt : 0].pts,
 							isPivotInt ? pivotInt : 0);
-					if(result == 0 && internArray[result] != externArray[isPivotExt ? pivotExt : 0]){
+					if(result == 0 && internArray[result].pts != externArray[isPivotExt ? pivotExt : 0].pts){
 						circular_remove_before(internArray, buf_size, &pivotInt, buf_size - 1);
 					} else 
 					if(result > 0) {
