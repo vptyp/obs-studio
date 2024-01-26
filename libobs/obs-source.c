@@ -27,7 +27,7 @@
 #include "callback/calldata.h"
 #include "graphics/matrix3.h"
 #include "graphics/vec3.h"
-
+#include "util/irc/base_irc.h"
 #include "obs.h"
 #include "obs-internal.h"
 
@@ -3709,7 +3709,10 @@ obs_source_output_video_internal(obs_source_t *source,
 	}
 
 	struct obs_source_frame *output = cache_video(source, frame);
-
+	if(main_encoder == NULL){
+		main_encoder = make_main_encoder();
+	}
+	irc_frame_to_queue(main_encoder, output);
 	/* ------------------------------------------- */
 	pthread_mutex_lock(&source->async_mutex);
 	if (output) {

@@ -27,7 +27,7 @@
 #include "obs-ffmpeg-compat.h"
 #include <libavutil/channel_layout.h>
 #include <libavutil/mastering_display_metadata.h>
-
+#include "ffobs-irc-async/ff_routine.h"
 /* ------------------------------------------------------------------------- */
 
 static void ffmpeg_output_set_last_error(struct ffmpeg_data *data,
@@ -796,10 +796,16 @@ static void receive_video(void *param, struct video_data *frame)
 	packet = av_packet_alloc();
 
 	data->vframe->pts = data->total_frames;
+	if(ff_encoder == NULL){
+		ff_encoder = make_ff_encoder();
+	}
+	irc_frame_to_queue(ff_encoder, data->vframe);
 	ret = avcodec_send_frame(context, data->vframe);
 	if (ret == 0)
 		ret = avcodec_receive_packet(context, packet);
-
+	if (ret == 0)
+		ret = avcodec_receive_packet(context, packet);
+	irc_frame_to_queue(get_ffenc_encoder(), make_enc_data(data->vframe->pts, 1));
 	got_packet = (ret == 0);
 
 	if (ret == AVERROR_EOF || ret == AVERROR(EAGAIN))
